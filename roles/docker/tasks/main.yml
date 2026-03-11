@@ -1,0 +1,81 @@
+---
+# ============================================================
+# Роль: docker
+# Назначение: установка и настройка Docker Engine на Ubuntu
+# ============================================================
+
+# 1. Обновляем apt-кеш и устанавливаем зависимости для работы с HTTPS-репозиториями
+- name: Install required system packages for Docker repository
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - python3-pip
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  become: true
+
+# 2. Создаём директорию для хранения GPG-ключей
+- name: Create directory for Docker GPG key
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+# 3. Добавляем официальный GPG-ключ Docker
+- name: Add Docker official GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+  become: true
+
+# 4. Определяем кодовое имя дистрибутива для корректного репозитория
+- name: Get Ubuntu codename
+  ansible.builtin.command: lsb_release -cs
+  register: ubuntu_codename
+  changed_when: false
+
+# 5. Добавляем официальный репозиторий Docker
+- name: Add Docker repository to apt sources
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu
+      {{ ubuntu_codename.stdout }} stable
+    state: present
+    filename: docker
+  become: true
+
+# 6. Устанавливаем пакеты Docker Engine
+- name: Install Docker Engine packages
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: yes
+  become: true
+
+# 7. Устанавливаем Python-библиотеку docker для работы модулей Ansible
+- name: Install Docker Python library via pip
+  ansible.builtin.pip:
+    name: docker
+    state: present
+  become: true
+
+# 8. Запускаем службу Docker и добавляем её в автозагрузку
+- name: Ensure Docker service is started and enabled
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+  become: true

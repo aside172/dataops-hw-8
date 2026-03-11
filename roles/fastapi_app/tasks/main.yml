@@ -1,0 +1,50 @@
+---
+# ============================================================
+# Роль: fastapi_app
+# Назначение: сборка Docker-образа и запуск контейнера с FastAPI
+# ============================================================
+
+# 1. Создаём директорию на целевом сервере для файлов приложения
+- name: Create application directory on target server
+  ansible.builtin.file:
+    path: /opt/fastapi_app
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+
+# 2. Копируем все файлы приложения на сервер
+- name: Copy application files to server
+  ansible.builtin.copy:
+    src: app/
+    dest: /opt/fastapi_app/
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: app_files
+
+# 3. Собираем Docker-образ из Dockerfile
+- name: Build Docker image for FastAPI application
+  community.docker.docker_image:
+    name: fastapi
+    tag: latest
+    source: build
+    build:
+      path: /opt/fastapi_app
+    force_source: "{{ app_files.changed }}"
+  become: true
+  register: docker_image
+
+# 4. Запускаем (или перезапускаем) контейнер с приложением
+- name: Run FastAPI Docker container
+  community.docker.docker_container:
+    name: fastapi_container
+    image: fastapi:latest
+    state: started
+    restart_policy: always
+    ports:
+      - "80:8000"
+    recreate: "{{ docker_image.changed }}"
+  become: true
